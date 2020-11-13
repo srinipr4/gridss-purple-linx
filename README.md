@@ -219,9 +219,6 @@ Running it's default settings, the pipeline will use 25GB of memory and as many 
 If your reference genome does not match exactly, then GRIDSS will fail with an error.
 If your reference genomes is just a different version of hg19, then you'll need to make the reference in the BAM and the `ref_data` match. To correct this, you can do one of the following:
 
-- Realign your reads to the reference genome supplied with the reference data
+- Realign your reads to the reference genome supplied with the reference data  OR
 - Use a different reference genome using the `--reference` parameter
   - *WARNING*: bed, bedpe, and csv will need to be converted to use a `chr` if your reference uses a `chr` prefix
-- Translate your BAM match the supplied reference
-  - *WARNING*: Tools like `samtools reheader` cannot reorder chromosomes. Make sure your chromosome order matches.
-  - *WARNING*: Not recommended. I'm not aware of any tool that correctly translates `SA` tags. If you were to do this, you'd need to strip out the `SA` tags and remove all secondary and supplementary alignments and leave it to GRIDSS to re-identify the split reads (which it does).
