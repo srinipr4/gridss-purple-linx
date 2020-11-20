@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Stand-alone GRIDSS-PURPLE-Linx pipeline
+# Stand-alone GRIDSS-PURPLE-LINX pipeline
 #
 # Example: ./gridss-purple-linx.sh -n /data/COLO829R_dedup.realigned.bam -t /data/COLO829T_dedup.realigned.bam -v /data/colo829snv.vcf.gz -s colo829 -v /data/COLO829v003T.somatic_caller_post_processed.vcf.gz
 # docker run  gridss/gridss-purple-linx
@@ -24,24 +24,27 @@ normal_sample=""
 tumour_sample=""
 cleanup="y"
 jvmheap="25g"
-referencename="hg19"
-rlib=rlib/
-ref_genome=refgenomes/Homo_sapiens.GRCh37.GATK.illumina/Homo_sapiens.GRCh37.GATK.illumina.fasta
+ref_genome_version="HG37"
+
 viralreference=refgenomes/human_virus/human_virus.fa
 blacklist=dbs/gridss/ENCFF001TDO.bed
-repeatmasker=dbs/repeatmasker/hg19.fa.out
-bafsnps=dbs/germline_het_pon_hg19/GermlineHetPon.hg19.vcf.gz
+repeatmasker=dbs/repeatmasker/rm.fa.out.bed
+bafsnps=dbs/germline_het_pon/GermlineHetPon.vcf.gz
 gcprofile=dbs/gc/GC_profile.1000bp.cnp
-gridsspon=dbs/gridss/pon3792v1
-# LINX data files
-viral_hosts_csv=dbs/sv/viral_host_ref.csv
-fusion_pairs_csv=dbs/knowledgebases/output/knownFusionPairs.csv
-promiscuous_five_csv=dbs/knowledgebases/output/knownPromiscuousFive.csv
-promiscuous_three_csv=dbs/knowledgebases/output/knownPromiscuousThree.csv
-fragile_sites=dbs/sv/fragile_sites_hmf.csv
-line_elements=dbs/sv/line_elements.csv
-replication_origins=dbs/sv/heli_rep_origins.bed
+gridss_properties=dbs/gridss/gridss.properties
+breakpoint_hotspot=dbs/knowledgebases/KnownFusionPairs.bedpe
+breakend_pon=dbs/gridss_pon/gridss_pon_single_breakend.bed
+breakpoint_pon=dbs/gridss_pon/gridss_pon_breakpoint.bedpe
+viral_hosts_csv=dbs/knowledgebases/viral_host_ref.csv
+known_fusion_csv=dbs/knowledgebases/known_fusion_data.csv
+fragile_sites=dbs/knowledgebases/fragile_sites_hmf.csv
+line_elements=dbs/knowledgebases/line_elements.csv
+replication_origins=dbs/knowledgebases/heli_rep_origins.bed
 ensembl_data_dir=dbs/ensembl_data_cache
+driver_gene_panel=dbs/knowledgebases/DriverGenePanel.tsv
+known_hotspots_vcf=dbs/knowledgebases/KnownHotspots.vcf.gz
+rlib=rlib/
+
 picardoptions=""
 validation_stringency="STRICT"
 
@@ -63,29 +66,26 @@ usage() {
 	echo "	--jvmheap: maximum java heap size for high-memory steps (default: 25g)" 1>&2
 	echo "	--ref_dir: path to decompressed reference data package. (default: /refdata)" 1>&2
 	echo "	--reference: reference genome (default:refgenomes/Homo_sapiens.GRCh37.GATK.illumina/Homo_sapiens.GRCh37.GATK.illumina.fasta)" 1>&2
-	echo "	--repeatmasker: repeatmasker .fa.out file for reference genome (default: refgenomes/dbs/repeatmasker/hg19.fa.out)" 1>&2
+	echo "	--repeatmasker: repeatmasker .fa.out file for reference genome (default: refgenomes/dbs/repeatmasker/rm.fa.out.bed)" 1>&2
 	echo "	--blacklist: Blacklisted regions (default:dbs/gridss/ENCFF001TDO.bed)" 1>&2
-	echo "	--bafsnps: bed file of het SNP locations used by amber. (default: dbs/germline_het_pon_hg19/GermlineHetPon.hg19.bed)" 1>&2
+	echo "	--bafsnps: VCF file of het SNP locations used by amber. (default: dbs/germline_het_pon/GermlineHetPon.vcf.gz)" 1>&2
 	echo "	--gcprofile: .cnp file of GC in reference genome. 1k bins (default: dbs/gc/GC_profile.1000bp.cnp)." 1>&2
-	echo "	--gridsspon: GRIDSS PON (default: dbs/gridss/pon3792v1)" 1>&2
 	echo "	--viralreference: viral reference database (fasta format) (default: refgenomes/human_virus/human_virus.fa)" 1>&2
 	echo "	--rlib: R library path that include correct BSgenome package (default: rlib)" 1>&2
-	echo "	--viral_hosts_csv: viral contig to name lookup (default: dbs/sv/viral_host_ref.csv)" 1>&2
-	echo "	--fusion_pairs_csv: known driver gene fusions (default: dbs/knowledgebases/output/knownFusionPairs.csv)" 1>&2
-	echo "	--promiscuous_five_csv: known promiscuous gene fusions (default: dbs/knowledgebases/output/knownPromiscuousFive.csv)" 1>&2
-	echo "	--promiscuous_three_csv: known promiscuous gene fusions (default: dbs/knowledgebases/output/knownPromiscuousThree.csv)" 1>&2
-	echo "	--fragile_sites: known fragile sites (default: dbs/sv/fragile_sites_hmf.csv)" 1>&2
-	echo "	--line_elements: known LINE donor sites (default: dbs/sv/line_elements.csv)" 1>&2
-	echo "	--replication_origins: replication timing BED file (default: dbs/sv/heli_rep_origins.bed)" 1>&2
+	echo "	--viral_hosts_csv: viral contig to name lookup (default: dbs/knowledgebases/viral_host_ref.csv)" 1>&2
+	echo "	--known_fusion_csv: known fusion data (default: dbs/knowledgebases/known_fusion_data.csv)" 1>&2
+	echo "	--fragile_sites: known fragile sites (default: dbs/knowledgebases/fragile_sites_hmf.csv)" 1>&2
+	echo "	--line_elements: known LINE donor sites (default: dbs/knowledgebases/line_elements.csv)" 1>&2
+	echo "	--driver_gene_panel: driver gene panel (default: dbs/knowledgebases/DriverGenePanel.tsv)" 1>&2
+	echo "	--replication_origins: replication timing BED file (default: dbs/knowledgebases/heli_rep_origins.bed)" 1>&2
 	echo "	--ensembl_data_dir: ensemble data cache (default: dbs/ensembl_data_cache)" 1>&2
-	echo "	--validation_stringency: htsjdk SAM/BAM validation level (STRICT (default), LENIENT, or SILENT)" 1>&2
 	echo "	--help: print this message and exit" 1>&2
 	echo "" 1>&2
 	exit 1
 }
 
 OPTIONS=v:o:t:n:s:r:b:h
-LONGOPTS=snvvcf:,nosnvvcf,output_dir:,tumour_bam:,normal_bam:,sample:,threads:,jvmheap:,ref_dir:,reference:,repeatmasker:,blacklist:,bafsnps:,gcprofile:,gridsspon:,viralreference:,referencename:,viral_hosts_csv:,fusion_pairs_csv:,promiscuous_five_csv:,promiscuous_three_csv:,fragile_sites:,line_elements:,replication_origins:,ensembl_data_dir:,normal_sample:,tumour_sample:,install_dir:,picardoptions:,validation_stringency:,help
+LONGOPTS=snvvcf:,nosnvvcf,output_dir:,tumour_bam:,normal_bam:,sample:,threads:,jvmheap:,ref_dir:,reference:,blacklist:,bafsnps:,viralreference:,ref_genome_version:,normal_sample:,tumour_sample:,rundir:,install_dir:,picardoptions:,help
 ! PARSED=$(getopt --options=$OPTIONS --longoptions=$LONGOPTS --name "$0" -- "$@")
 if [[ ${PIPESTATUS[0]} -ne 0 ]]; then
 	# e.g. return value is 1
@@ -95,38 +95,6 @@ fi
 eval set -- "$PARSED"
 while true; do
 	case "$1" in
-		--viral_hosts_csv)
-			viral_hosts_csv="$2"
-			shift 2
-			;;
-		--fusion_pairs_csv)
-			fusion_pairs_csv="$2"
-			shift 2
-			;;
-		--promiscuous_five_csv)
-			promiscuous_five_csv="$2"
-			shift 2
-			;;
-		--promiscuous_three_csv)
-			promiscuous_three_csv="$2"
-			shift 2
-			;;
-		--fragile_sites)
-			fragile_sites="$2"
-			shift 2
-			;;
-		--line_elements)
-			line_elements="$2"
-			shift 2
-			;;
-		--replication_origins)
-			replication_origins="$2"
-			shift 2
-			;;
-		--ensembl_data_dir)
-			ensembl_data_dir="$2"
-			shift 2
-			;;
 		--rundir)
 			run_dir="$2"
 			shift 2
@@ -143,8 +111,8 @@ while true; do
 			viralreference="$2"
 			shift 2
 			;;
-		--referencename)
-			referencename="$2"
+		--ref_genome_version)
+			ref_genome_version="$2"
 			shift 2
 			;;
 		-b|--blacklist)
@@ -153,14 +121,6 @@ while true; do
 			;;
 		--bafsnps)
 			bafsnps="$2"
-			shift 2
-			;;
-		--gcprofile)
-			gcprofile="$2"
-			shift 2
-			;;
-		--gridsspon)
-			gridsspon="$2"
 			shift 2
 			;;
 		-n|--normal_bam)
@@ -196,10 +156,6 @@ while true; do
 			printf -v threads '%d' "$2" 2>/dev/null
 			shift 2
 			;;
-		--repeatmasker)
-			repeatmasker="$2"
-			shift 2
-			;;
 		--jvmheap)
 			jvmheap="$2"
 			shift 2
@@ -215,10 +171,6 @@ while true; do
 		--picardoptions)
 			# pass-through to gridss.sh argument of the same name
 			picardoptions="$2"
-			shift 2
-			;;
-		--validation_stringency)
-			validation_stringency="$2"
 			shift 2
 			;;
 		-h|--help)
@@ -254,35 +206,45 @@ assert_directory_exists $install_dir/gridss "install_dir"
 assert_directory_exists $install_dir/hmftools "install_dir"
 assert_directory_exists $install_dir/gridss-purple-linx "install_dir"
 assert_file_exists $install_dir/gridss/gridss.sh "install_dir"
-assert_file_exists $install_dir/gridss/gridss_somatic_filter.R "install_dir"
-assert_file_exists $install_dir/gridss/gridss_annotate_insertions_repeatmaster.R "install_dir"
 assert_file_exists $install_dir/gridss/libgridss.R "install_dir"
-assert_directory_exists $install_dir/gridss-purple-linx "install_dir"
+
+if [[ "$ref_genome_version" == "HG37" ]] ; then
+	echo "Running reference genome version: $ref_genome_version"
+	ref_genome=refgenomes/Homo_sapiens.GRCh37.GATK.illumina/Homo_sapiens.GRCh37.GATK.illumina.fasta
+elif if [[ "$ref_genome_version" == "HG38" ]] ; then
+	echo "Running reference genome version: $ref_genome_version"
+	ref_genome=refgenomes/Homo_sapiens.GRCh38/Homo_sapiens_assembly38.fasta
+else
+	echo "Invalid reference genome version: $ref_genome_version"
+	exit 1
+fi
 
 rlib=$ref_dir/$rlib
 ref_genome=$ref_dir/$ref_genome
 viralreference=$ref_dir/$viralreference
 blacklist=$ref_dir/$blacklist
 repeatmasker=$ref_dir/$repeatmasker
+gridss_properties=$ref_dir/$gridss_properties
 bafsnps=$ref_dir/$bafsnps
 gcprofile=$ref_dir/$gcprofile
-gridsspon=$ref_dir/$gridsspon
-# LINX data files
+breakpoint_hotspot=$ref_dir/$breakpoint_hotspot
+breakend_pon=$ref_dir/$breakend_pon
+breakpoint_pon=$ref_dir/$breakpoint_pon
 viral_hosts_csv=$ref_dir/$viral_hosts_csv
-fusion_pairs_csv=$ref_dir/$fusion_pairs_csv
-promiscuous_five_csv=$ref_dir/$promiscuous_five_csv
-promiscuous_three_csv=$ref_dir/$promiscuous_three_csv
+known_fusion_csv=$ref_dir/$known_fusion_csv
 fragile_sites=$ref_dir/$fragile_sites
 line_elements=$ref_dir/$line_elements
 replication_origins=$ref_dir/$replication_origins
 ensembl_data_dir=$ref_dir/$ensembl_data_dir
+driver_gene_panel=$ref_dir/$driver_gene_panel
+known_hotspots_vcf=$ref_dir/${known_hotspots_vcf}
+
 
 assert_file_exists $ref_genome "reference"
 assert_file_exists $repeatmasker "repeatmasker"
 assert_file_exists $gcprofile "gcprofile"
 assert_file_exists $blacklist "blacklist"
 assert_file_exists $viralreference "viralreference"
-assert_directory_exists $gridsspon "gridsspon"
 
 if [[ "$snvvcf" == "nosnvvcf" ]] ; then
 	echo "No somatic SNV VCF supplied."
@@ -321,10 +283,10 @@ if [[ "$threads" -lt 1 ]] ; then
 fi
 joint_sample_name=$sample
 if [[ -z "$normal_sample" ]] ; then
-	normal_sample=${sample}_N
+	normal_sample=${sample}R
 fi
 if [[ -z "$tumour_sample" ]] ; then
-	tumour_sample=${sample}_T
+	tumour_sample=${sample}T
 fi
 export R_LIBS="$rlib:${R_LIBS:-}"
 base_path=$(dirname $(readlink $0 || echo $0))
@@ -338,11 +300,21 @@ find_jar() {
 		exit 1
 	fi
 }
-gridss_jar=$(find_jar GRIDSS_JAR gridss)
-amber_jar=$(find_jar AMBER_JAR amber)
-cobalt_jar=$(find_jar COBALT_JAR cobalt)
-purple_jar=$(find_jar PURPLE_JAR purple)
-linx_jar=$(find_jar LINX_JAR sv-linx)
+
+#gridss_jar=$(find_jar GRIDSS_JAR gridss)
+#gripss_jar=$(find_jar GRIPSS_JAR gripss)
+#amber_jar=$(find_jar AMBER_JAR amber)
+#cobalt_jar=$(find_jar COBALT_JAR cobalt)
+#purple_jar=$(find_jar PURPLE_JAR purple)
+#linx_jar=$(find_jar LINX_JAR sv-linx)
+
+gridss_jar=$install_dir/gridss.jar
+gripss_jar=$install_dir/gripss.jar
+amber_jar=$install_dir/amber.jar
+cobalt_jar=$install_dir/cobalt.jar
+purple_jar=$install_dir/purple.jar
+linx_jar=$install_dir/sv-linx.jar
+tabix=$install_dir/tabix
 
 for program in bwa sambamba samtools circos Rscript java ; do
 	if ! which $program > /dev/null ; then
@@ -373,7 +345,7 @@ if [[ ! -s $ref_genome.bwt ]] ; then
 	exit 1
 fi
 
-mkdir -p $run_dir/logs $run_dir/gridss $run_dir/amber $run_dir/purple
+mkdir -p $run_dir/logs $run_dir/gridss $run_dir/gripss $run_dir/amber $run_dir/purple
 log_prefix=$run_dir/logs/$(date +%Y%m%d_%H%M%S).$HOSTNAME.$$
 
 jvm_args="
@@ -395,7 +367,7 @@ echo [$timestamp] sample=$sample
 echo [$timestamp] normal_sample=$normal_sample
 echo [$timestamp] tumour_sample=$tumour_sample
 echo [$timestamp] jvmheap=$jvmheap
-echo [$timestamp] referencename=$referencename
+echo [$timestamp] ref_genome_version=$ref_genome_version
 echo [$timestamp] rlib=$rlib
 echo [$timestamp] ref_genome=$ref_genome
 echo [$timestamp] viralreference=$viralreference
@@ -403,121 +375,112 @@ echo [$timestamp] blacklist=$blacklist
 echo [$timestamp] repeatmasker=$repeatmasker
 echo [$timestamp] bafsnps=$bafsnps
 echo [$timestamp] gcprofile=$gcprofile
-echo [$timestamp] gridsspon=$gridsspon
 echo [$timestamp] viral_hosts_csv=$viral_hosts_csv
-echo [$timestamp] fusion_pairs_csv=$fusion_pairs_csv
-echo [$timestamp] promiscuous_five_csv=$promiscuous_five_csv
-echo [$timestamp] promiscuous_three_csv=$promiscuous_three_csv
+echo [$timestamp] known_fusion_data=$known_fusion_csv
 echo [$timestamp] fragile_sites=$fragile_sites
 echo [$timestamp] line_elements=$line_elements
 echo [$timestamp] replication_origins=$replication_origins
 echo [$timestamp] ensembl_data_dir=$ensembl_data_dir
+echo [$timestamp] driver_gene_panel=$driver_gene_panel
 echo [$timestamp] picardoptions=$picardoptions
-echo [$timestamp] validation_stringency=$validation_stringency
 
-echo ############################################
-echo # Running GRIDSS
-echo ############################################
 gridss_dir=$run_dir/gridss
 assembly_bam=$gridss_dir/$joint_sample_name.assembly.bam
-gridss_raw_vcf=$gridss_dir/${joint_sample_name}.gridss.vcf.gz
-gridss_refann_vcf=$gridss_dir/tmp.refann.${joint_sample_name}.gridss.vcf.gz
-gridss_virann_vcf=$gridss_dir/tmp.refvirann.${joint_sample_name}.gridss.vcf.gz
-gridss_decompressed_vcf=$gridss_dir/tmp.decompressed.${joint_sample_name}.gridss.vcf
-gridss_decompressed_rmann_vcf=$gridss_dir/tmp.rmann.${joint_sample_name}.gridss.vcf
-gridss_somatic_full_vcf=$gridss_dir/${tumour_sample}.gridss.full.somatic.vcf.gz
-gridss_somatic_vcf=$gridss_dir/${tumour_sample}.gridss.somatic.vcf.gz
-if [[ ! -f $gridss_raw_vcf ]] ; then
+gridss_driver_vcf=$gridss_dir/${tumour_sample}.gridss.driver.vcf.gz
+gridss_unfiltered_vcf=$gridss_dir/${tumour_sample}.gridss.unfiltered.vcf.gz
+
+if [[ ! -f $gridss_driver_vcf ]] ; then
+
+	echo "Running GRIDSS"
+
 	$install_dir/gridss/gridss.sh \
-		-b $blacklist \
-		-r $ref_genome \
-		-o $gridss_raw_vcf \
+		-o ${gridss_driver_vcf} \
 		-a $assembly_bam \
-		-w $gridss_dir \
-		-j $gridss_jar \
+		-w ${gridss_dir} \
+		-r ${ref_genome} \
+		-j ${gridss_jar} \
 		-t $threads \
-		--jvmheap $jvmheap \
-		--labels "$normal_sample,$tumour_sample" \
-		$normal_bam \
-		$tumour_bam \
-		--picardoptions "VALIDATION_STRINGENCY=$validation_stringency $picardoptions" \
-		2>&1 | tee $log_prefix.gridss.log
-else
-	echo "Found $gridss_raw_vcf, skipping GRIDSS" 
-fi
-if [[ ! -f $gridss_raw_vcf ]] ; then
-	echo "Error creating $gridss_raw_vcf. Aborting" 1>&2
-	exit 1
-fi
-if [[ ! -f $gridss_somatic_vcf ]] ; then
-	if [[ ! -f $gridss_decompressed_rmann_vcf ]] ; then
-		if [[ ! -f $gridss_refann_vcf ]] ; then
-		java -Xmx6g $jvm_args \
-			-cp $gridss_jar \
-			gridss.AnnotateUntemplatedSequence \
-			REFERENCE_SEQUENCE=$ref_genome \
-			INPUT=$gridss_raw_vcf \
-			OUTPUT=$gridss_refann_vcf \
-			WORKER_THREADS=$threads \
-			2>&1 | tee -a $log_prefix.gridss.AnnotateUntemplatedSequence.human.log
-		fi
-		if [[ ! -f $gridss_virann_vcf ]] ; then
-			# can't use $jvm_args since we're using a different reference
-			java -Xmx6g \
-				-Dsamjdk.create_index=false \
-				-Dsamjdk.use_async_io_read_samtools=false \
-				-Dsamjdk.use_async_io_write_samtools=false \
-				-Dsamjdk.use_async_io_write_tribble=false \
-				-Dsamjdk.buffer_size=4194304 \
-				-cp $gridss_jar \
-				gridss.AnnotateUntemplatedSequence \
-				REFERENCE_SEQUENCE=$viralreference \
-				INPUT=$gridss_refann_vcf \
-				OUTPUT=$gridss_virann_vcf \
-				WORKER_THREADS=$threads \
-				2>&1 | tee -a $log_prefix.gridss.AnnotateUntemplatedSequence.viral.log
-		fi
-		# workaround for https://github.com/Bioconductor/VariantAnnotation/issues/19
-		rm -f $gridss_decompressed_vcf
-		gunzip -c $gridss_virann_vcf | awk ' { if (length($0) >= 4000) { gsub(":0.00:", ":0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000:")} ; print $0  } ' > $gridss_decompressed_vcf
-		Rscript $install_dir/gridss/gridss_annotate_insertions_repeatmaster.R \
-			--input $gridss_decompressed_vcf \
-			--output $gridss_decompressed_rmann_vcf \
-			--repeatmasker $repeatmasker \
-			--scriptdir $install_dir/gridss/  \
-			2>&1 | tee -a $log_prefix.gridss.repeatannotate.log
-		if [[ -f $gridss_decompressed_rmann_vcf.bgz ]] ; then
-			gunzip -c $gridss_decompressed_rmann_vcf.bgz  | awk ' { if (length($0) >= 4000) { gsub(":0.00:", ":0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000:")} ; print $0  } ' > $gridss_decompressed_rmann_vcf
-		fi
+		-b ${blacklist} \
+		-c ${gridss_properties} \
+		--repeatmaskerbed ${repeatmasker} \
+		--jvmheap 31G ${normal_bam} ${tumour_bam}
+
+	if [[ ! -f $gridss_driver_vcf ]] ; then
+		echo "Error creating $gridss_driver_vcf. Aborting" 1>&2
+		exit 1
 	fi
-	Rscript $install_dir/gridss/gridss_somatic_filter.R \
-		-p ${gridsspon} \
-		-i $gridss_decompressed_rmann_vcf \
-		-o ${gridss_somatic_vcf} \
-		-f ${gridss_somatic_full_vcf} \
-		-r BSgenome.Hsapiens.UCSC.$referencename \
-		-s $install_dir/gridss/ \
-		--gc \
-		2>&1 | tee -a $log_prefix.gridss.somatic_filter.log
-	if [[ $cleanup == "y" ]] ; then
-		rm $gridss_dir/tmp.* 2>/dev/null
-	fi
-	mv ${gridss_somatic_vcf/.gz/.bgz} ${gridss_somatic_vcf}
-	mv ${gridss_somatic_vcf/.gz/.bgz}.tbi ${gridss_somatic_vcf}.tbi
-	mv ${gridss_somatic_full_vcf/.gz/.bgz} ${gridss_somatic_full_vcf}
-	mv ${gridss_somatic_full_vcf/.gz/.bgz}.tbi ${gridss_somatic_full_vcf}.tbi
+
+	echo # Creating VCF Index
+
+	${tabix} ${gridss_driver_vcf} -p vcf
+
 else
-	echo "Found $gridss_somatic_vcf, skipping GRIDSS post-processing" 
+	echo "Skipping GRIDSS - ${gridss_driver_vcf} exists"
 fi
-if [[ ! -f $gridss_somatic_vcf ]] ; then
-	echo "Error creating $gridss_somatic_vcf. Aborting" 1>&2
-	exit 1
+
+if [[ ! -f $gridss_unfiltered_vcf ]] ; then
+
+	echo "Running GRIDSS Annotations"
+
+	java -Xmx8G -Dsamjdk.create_index=true \
+		-Dsamjdk.use_async_io_read_samtools=true \
+		-Dsamjdk.use_async_io_write_samtools=true \
+		-Dsamjdk.use_async_io_write_tribble=true \
+		-Dsamjdk.buffer_size=4194304 \
+		-cp ${gridss_jar} gridss.AnnotateInsertedSequence \
+		REFERENCE_SEQUENCE=${viralreference} \
+		INPUT=${gridss_driver_vcf} \
+		OUTPUT=${gridss_unfiltered_vcf} \
+		ALIGNMENT=APPEND WORKER_THREADS=${threads} \
+
+	if [[ ! -f $gridss_unfiltered_vcf ]] ; then
+		echo "Error creating $gridss_unfiltered_vcf. Aborting" 1>&2
+		exit 1
+	fi
+else
+	echo "Skipping GRIDSS Annotations = ${gridss_unfiltered_vcf} exists"
 fi
-echo ############################################
-echo # Running Amber
-echo ############################################
+
+
+gripss_dir=$run_dir/gripss
+gripss_somatic_vcf=$gripss_dir/${tumour_sample}.gripss.somatic.vcf.gz
+gripss_somatic_filtered_vcf=$gripss_dir/${tumour_sample}.gripss.somatic.filtered.vcf.gz
+
+if [[ ! -f $gripss_somatic_vcf ]] ; then
+
+	echo "Running GRIPSS"
+
+	java -Xmx24G -cp ${gripss_jar} com.hartwig.hmftools.gripss.GripssApplicationKt \
+		-ref_genome ${ref_genome} \
+		-breakpoint_hotspot ${breakpoint_hotspot} \
+		-breakend_pon ${breakend_pon} \
+		-breakpoint_pon ${breakpoint_pon} \
+		-input_vcf ${gridss_unfiltered_vcf} \
+		-output_vcf ${gripss_somatic_vcf} \
+
+	if [[ ! -f $gripss_somatic_vcf ]] ; then
+		echo "Error creating $gripss_somatic_vcf. Aborting" 1>&2
+		exit 1
+	fi
+
+	java -Xmx24G -cp ${gripss_jar} com.hartwig.hmftools.gripss.GripssHardFilterApplicationKt \
+		-input_vcf ${gripss_somatic_vcf} \
+		-output_vcf ${gripss_somatic_filtered_vcf} \
+
+	if [[ ! -f ${gripss_somatic_filtered_vcf} ]] ; then
+		echo "Error creating ${gripss_somatic_filtered_vcf} - aborting" 1>&2
+		exit 1
+	fi
+else
+	echo "Skipping GRIPSS - ${gripss_somatic_vcf} exists"
+fi
+
 mkdir -p $run_dir/amber
-if [[ ! -f $run_dir/amber/$tumour_sample.amber.baf.vcf.gz ]] ; then
+amber_vcf=$run_dir/amber/$tumour_sample.amber.baf.vcf.gz
+if [[ ! -f ${amber_vcf} ]] ; then
+
+	echo "Running AMBER"
+
 	java -Xmx10G $jvm_args \
 		-jar $amber_jar \
 		-threads $threads \
@@ -529,46 +492,44 @@ if [[ ! -f $run_dir/amber/$tumour_sample.amber.baf.vcf.gz ]] ; then
 		-ref_genome $ref_genome \
 		-validation_stringency $validation_stringency \
 		-output_dir $run_dir/amber 2>&1 | tee $log_prefix.amber.log
+
+	if [[ ! -f ${amber_vcf} ]] ; then
+		echo "Error running AMBER - aborting" 2>&1
+		exit 1
+	fi
 else
-	echo "Found $run_dir/amber/$tumour_sample.amber.baf.vcf.gz. Skipping amber." 1>&2
-fi
-if [[ ! -f $run_dir/amber/$tumour_sample.amber.baf.vcf.gz ]] ; then
-	echo "Error running amber. Aborting" 2>&1
-	exit 1
+	echo "Skipping AMBER - ${amber_vcf} exists"
 fi
 
-echo ############################################
-echo # Running Cobalt
-echo ############################################
+
 mkdir -p $run_dir/cobalt
-if [[ ! -f $run_dir/cobalt/$tumour_sample.cobalt.ratio.pcf ]] ; then
-	java -Xmx10G $jvm_args \
-		-cp $cobalt_jar \
-		com.hartwig.hmftools.cobalt.CountBamLinesApplication \
-		-threads $threads \
-		-reference $normal_sample \
-		-reference_bam $normal_bam \
-		-tumor $tumour_sample \
-		-tumor_bam $tumour_bam \
-		-output_dir $run_dir/cobalt \
-		-gc_profile $gcprofile \
-		-validation_stringency $validation_stringency \
-		2>&1 | tee $log_prefix.cobalt.log
-else
-	echo "Found $run_dir/cobalt/$tumour_sample.cobalt.ratio.pcf. Skipping cobalt." 1>&2
-fi
-if [[ ! -f $run_dir/cobalt/$tumour_sample.cobalt.ratio.pcf ]] ; then
-	echo "Error running cobalt. Aborting" 2>&1
-	exit 1
-fi
-	
-#if [[ $cleanup == "y" ]] ; then
-#	rm -f $run_dir/cobalt/*.pcf1 $run_dir/cobalt/*.ratio $run_dir/cobalt/*.ratio.gc $run_dir/cobalt/*.count
-#fi
+cobalt_file=$run_dir/cobalt/$tumour_sample.cobalt.ratio.pcf
+if [[ ! -f ${cobalt_file} ]] ; then
 
-echo ############################################
-echo # Running PURPLE
-echo ############################################
+	echo "Running COBALT"
+
+	java -Xmx10G $jvm_args \
+		-cp ${cobalt_jar} com.hartwig.hmftools.cobalt.CountBamLinesApplication \
+		-threads ${threads} \
+		-reference ${normal_sample} \
+		-reference_bam ${normal_bam} \
+		-tumor ${tumour_sample} \
+		-tumor_bam ${tumour_bam} \
+		-ref_genome $ref_genome \
+		-output_dir ${run_dir}/cobalt \
+		-gc_profile ${gcprofile} \
+		-threads ${threads} \
+		2>&1 | tee $log_prefix.cobalt.log
+
+	if [[ ! -f ${cobalt_file} ]] ; then
+		echo "Error running COBALT - aborting" 2>&1
+		exit 1
+	fi
+
+else
+	echo "Skipping COBALT - ${cobalt_file} exists" 1>&2
+fi
+
 mkdir -p $run_dir/purple
 
 # circos requires /home/$LOGNAME to exist
@@ -577,7 +538,12 @@ if [[ -z "${LOGNAME:-}" ]] ; then
 	mkdir -p /home/$LOGNAME
 fi
 
-if [[ ! -f $run_dir/purple/$tumour_sample.purple.sv.vcf.gz ]] ; then
+purple_vcf=$run_dir/purple/$tumour_sample.purple.sv.vcf.gz
+
+if [[ ! -f ${purple_vcf} ]] ; then
+
+	echo "Running PURPLE"
+
 	if [[ -f "$snvvcf" ]] ; then
 		java -Dorg.jooq.no-logo=true -Xmx10G $jvm_args \
 			-jar ${purple_jar} \
@@ -588,10 +554,13 @@ if [[ ! -f $run_dir/purple/$tumour_sample.purple.sv.vcf.gz ]] ; then
 			-cobalt $run_dir/cobalt \
 			-gc_profile $gcprofile \
 			-ref_genome $ref_genome \
-			-structural_vcf $gridss_somatic_vcf \
-			-sv_recovery_vcf $gridss_somatic_full_vcf \
+			-structural_vcf ${gripss_somatic_filtered_vcf} \
+			-sv_recovery_vcf ${gripss_somatic_vcf} \
+			-driver_catalog -hotspots ${known_hotspots_vcf} \
+			-driver_gene_panel ${driver_gene_panel} \
+			-somatic_vcf $snvvcf \
 			-circos circos \
-			-somatic_vcf $snvvcf
+			-threads ${threads}
 	else
 		java -Dorg.jooq.no-logo=true -Xmx10G $jvm_args \
 			-jar ${purple_jar} \
@@ -602,23 +571,33 @@ if [[ ! -f $run_dir/purple/$tumour_sample.purple.sv.vcf.gz ]] ; then
 			-cobalt $run_dir/cobalt \
 			-gc_profile $gcprofile \
 			-ref_genome $ref_genome \
-			-structural_vcf $gridss_somatic_vcf \
-			-sv_recovery_vcf $gridss_somatic_full_vcf \
-			-circos circos
+			-structural_vcf ${gripss_somatic_filtered_vcf} \
+			-sv_recovery_vcf ${gripss_somatic_vcf} \
+			-driver_catalog -hotspots ${known_hotspots_vcf} \
+			-driver_gene_panel ${driver_gene_panel} \
+			-circos circos \
+			-threads ${threads}
 	fi
+
+	if [[ ! -f ${purple_vcf} ]] ; then
+		echo "Error running PURPLE - aborting" 2>&1
+		exit 1
+	fi
+
 else
-	echo "Found $run_dir/purple/$tumour_sample.purple.sv.vcf.gz. Skipping purple." 1>&2
+	echo "Skipping PURPLE - ${purple_vcf} exists" 1>&2
 fi
 
-echo ############################################
-echo # Running Linx
-echo ############################################
 mkdir -p $run_dir/linx
-java -Xmx8G -Xms4G -jar $LINX_JAR \
-	-ref_genome $ref_genome \
-	-sample $tumour_sample \
+
+echo "Running LINX"
+
+java -Xmx8G -Xms4G -jar ${linx_jar} \
+	-ref_genome ${ref_genome} \
+	-ref_genome_version ${ref_genome_version} \
+	-sample ${tumour_sample} \
 	-purple_dir $run_dir/purple \
-	-sv_vcf $run_dir/purple/$tumour_sample.purple.sv.vcf.gz \
+	-sv_vcf ${purple_vcf} \
 	-output_dir $run_dir/linx \
 	-fragile_site_file ${fragile_sites} \
 	-line_element_file ${line_elements} \
@@ -626,55 +605,22 @@ java -Xmx8G -Xms4G -jar $LINX_JAR \
 	-viral_hosts_file ${viral_hosts_csv} \
 	-gene_transcripts_dir ${ensembl_data_dir} \
 	-check_fusions \
-	-fusion_pairs_csv ${fusion_pairs_csv} \
-	-promiscuous_five_csv ${promiscuous_five_csv} \
-	-promiscuous_three_csv ${promiscuous_three_csv} \
+	-known_fusion_file ${known_fusion_csv} \
+	-driver_gene_panel ${driver_gene_panel} \
+	-check_drivers \
 	-write_vis_data \
-	-check_drivers
 
-java -cp $LINX_JAR com.hartwig.hmftools.linx.visualiser.SvVisualiser \
-	-sample $tumour_sample \
+echo "Generating LINE visualisations"
+
+java -cp ${linx_jar} com.hartwig.hmftools.linx.visualiser.SvVisualiser \
+	-sample ${tumour_sample} \
 	-plot_out $run_dir/linx/plot/ \
 	-data_out $run_dir/linx/circos/ \
-	-segment $run_dir/linx/$tumour_sample.linx.vis_segments.tsv \
-	-link $run_dir/linx/$tumour_sample.linx.vis_sv_data.tsv \
-	-exon $run_dir/linx/$tumour_sample.linx.vis_gene_exon.tsv \
-	-cna $run_dir/linx/$tumour_sample.linx.vis_copy_number.tsv \
-	-protein_domain $run_dir/linx/$tumour_sample.linx.vis_protein_domain.tsv \
-	-fusion $run_dir/linx/$tumour_sample.linx.fusions_detailed.csv \
+	-vis_file_dir $run_dir/linx/ \
 	-circos circos \
 	-threads $threads
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+echo "GRIDSS - Purple - Linx script complete"
 
 
