@@ -290,6 +290,7 @@ if [[ -z "$tumour_sample" ]] ; then
 fi
 export R_LIBS="$rlib:${R_LIBS:-}"
 base_path=$(dirname $(readlink $0 || echo $0))
+
 ### Find the jars
 find_jar() {
 	env_name=$1
@@ -301,19 +302,19 @@ find_jar() {
 	fi
 }
 
-#gridss_jar=$(find_jar GRIDSS_JAR gridss)
-#gripss_jar=$(find_jar GRIPSS_JAR gripss)
-#amber_jar=$(find_jar AMBER_JAR amber)
-#cobalt_jar=$(find_jar COBALT_JAR cobalt)
-#purple_jar=$(find_jar PURPLE_JAR purple)
-#linx_jar=$(find_jar LINX_JAR sv-linx)
+gridss_jar=$(find_jar GRIDSS_JAR gridss)
+gripss_jar=$(find_jar GRIPSS_JAR gripss)
+amber_jar=$(find_jar AMBER_JAR amber)
+cobalt_jar=$(find_jar COBALT_JAR cobalt)
+purple_jar=$(find_jar PURPLE_JAR purple)
+linx_jar=$(find_jar LINX_JAR sv-linx)
 
-gridss_jar=$install_dir/gridss.jar
-gripss_jar=$install_dir/gripss.jar
-amber_jar=$install_dir/amber.jar
-cobalt_jar=$install_dir/cobalt.jar
-purple_jar=$install_dir/purple.jar
-linx_jar=$install_dir/sv-linx.jar
+#gridss_jar=$install_dir/gridss.jar
+#gripss_jar=$install_dir/gripss.jar
+#amber_jar=$install_dir/amber.jar
+#cobalt_jar=$install_dir/cobalt.jar
+#purple_jar=$install_dir/purple.jar
+#linx_jar=$install_dir/sv-linx.jar
 tabix=$install_dir/tabix
 
 for program in bwa sambamba samtools circos Rscript java ; do
