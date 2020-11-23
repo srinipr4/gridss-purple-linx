@@ -22,70 +22,37 @@ threads=$(nproc)
 sample=""
 normal_sample=""
 tumour_sample=""
-cleanup="y"
 jvmheap="25g"
 ref_genome_version="HG37"
 
-viralreference=refgenomes/human_virus/human_virus.fa
-blacklist=dbs/gridss/ENCFF001TDO.bed
-repeatmasker=dbs/repeatmasker/rm.fa.out.bed
-bafsnps=dbs/germline_het_pon/GermlineHetPon.vcf.gz
-gcprofile=dbs/gc/GC_profile.1000bp.cnp
-gridss_properties=dbs/gridss/gridss.properties
-breakpoint_hotspot=dbs/knowledgebases/KnownFusionPairs.bedpe
-breakend_pon=dbs/gridss_pon/gridss_pon_single_breakend.bed
-breakpoint_pon=dbs/gridss_pon/gridss_pon_breakpoint.bedpe
-viral_hosts_csv=dbs/knowledgebases/viral_host_ref.csv
-known_fusion_csv=dbs/knowledgebases/known_fusion_data.csv
-fragile_sites=dbs/knowledgebases/fragile_sites_hmf.csv
-line_elements=dbs/knowledgebases/line_elements.csv
-replication_origins=dbs/knowledgebases/heli_rep_origins.bed
-ensembl_data_dir=dbs/ensembl_data_cache
-driver_gene_panel=dbs/knowledgebases/DriverGenePanel.tsv
-known_hotspots_vcf=dbs/knowledgebases/KnownHotspots.vcf.gz
-rlib=rlib/
-
 picardoptions=""
 validation_stringency="STRICT"
+usage_msg="Usage: gridss-purple-linx.sh
 
+Required command line arguments:
+	--tumour_bam: tumour BAM file
+	--normal_bam: matched normal BAM file
+	--sample: sample name
+Optional parameters:
+	--output_dir: output directory. (/data)
+	--ref_genome_version: reference genome. HG37 or HG38 ($ref_genome_version)
+	--ref_dir: path to decompressed Hartwig reference data package. ($ref_dir)
+	--snvvcf: A somatic SNV VCF with the AD genotype field populated.
+	--nosnvvcf: Indicates a somatic SNV VCF will not be supplied. This will reduce the accuracy of PURPLE ASCN.
+	--threads: number of threads to use. ($threads)
+	--install_dir: root directory of gridss-purple-linx release ($install_dir)
+	--normal_sample: sample name of matched normal ({sample}_N) 
+	--tumour_sample: sample name of tumour. Must match the somatic \$snvvcf sample name. ({sample}_T) 
+	--jvmheap: maximum java heap size for high-memory steps ($jvmheap)
+	--help: print this message and exit
+"
 usage() {
-	echo "Usage: gridss-purple-linx.sh" 1>&2
-	echo "" 1>&2
-	echo "Required command line arguments:" 1>&2
-	echo "	--tumour_bam: tumour BAM file" 1>&2
-	echo "	--normal_bam: matched normal BAM file" 1>&2
-	echo "	--sample: sample name" 1>&2
-	echo "Optional parameters:" 1>&2
-	echo "	--output_dir: output directory. (default: /data)" 1>&2
-	echo "	--install_dir: root directory of gridss-purple-linx release (default: /opt/)" 1>&2
-	echo "	--snvvcf: A somatic SNV VCF with the AD genotype field populated." 1>&2
-	echo "	--nosnvvcf: Indicates a somatic SNV VCF will not be supplied. This will reduce the accuracy of PURPLE ASCN." 1>&2
-	echo "	--threads: number of threads to use. (Default: number of cores available)" 1>&2
-	echo "	--normal_sample: sample name of matched normal (Default: \${sample}_N) " 1>&2
-	echo "	--tumour_sample: sample name of tumour. Must match the somatic \$snvvcf sample name. (Default: \${sample}_T) " 1>&2
-	echo "	--jvmheap: maximum java heap size for high-memory steps (default: 25g)" 1>&2
-	echo "	--ref_dir: path to decompressed reference data package. (default: /refdata)" 1>&2
-	echo "	--reference: reference genome (default:refgenomes/Homo_sapiens.GRCh37.GATK.illumina/Homo_sapiens.GRCh37.GATK.illumina.fasta)" 1>&2
-	echo "	--repeatmasker: repeatmasker .fa.out file for reference genome (default: refgenomes/dbs/repeatmasker/rm.fa.out.bed)" 1>&2
-	echo "	--blacklist: Blacklisted regions (default:dbs/gridss/ENCFF001TDO.bed)" 1>&2
-	echo "	--bafsnps: VCF file of het SNP locations used by amber. (default: dbs/germline_het_pon/GermlineHetPon.vcf.gz)" 1>&2
-	echo "	--gcprofile: .cnp file of GC in reference genome. 1k bins (default: dbs/gc/GC_profile.1000bp.cnp)." 1>&2
-	echo "	--viralreference: viral reference database (fasta format) (default: refgenomes/human_virus/human_virus.fa)" 1>&2
-	echo "	--rlib: R library path that include correct BSgenome package (default: rlib)" 1>&2
-	echo "	--viral_hosts_csv: viral contig to name lookup (default: dbs/knowledgebases/viral_host_ref.csv)" 1>&2
-	echo "	--known_fusion_csv: known fusion data (default: dbs/knowledgebases/known_fusion_data.csv)" 1>&2
-	echo "	--fragile_sites: known fragile sites (default: dbs/knowledgebases/fragile_sites_hmf.csv)" 1>&2
-	echo "	--line_elements: known LINE donor sites (default: dbs/knowledgebases/line_elements.csv)" 1>&2
-	echo "	--driver_gene_panel: driver gene panel (default: dbs/knowledgebases/DriverGenePanel.tsv)" 1>&2
-	echo "	--replication_origins: replication timing BED file (default: dbs/knowledgebases/heli_rep_origins.bed)" 1>&2
-	echo "	--ensembl_data_dir: ensemble data cache (default: dbs/ensembl_data_cache)" 1>&2
-	echo "	--help: print this message and exit" 1>&2
-	echo "" 1>&2
+	echo "$usage_msg" 1>&2
 	exit 1
 }
 
 OPTIONS=v:o:t:n:s:r:b:h
-LONGOPTS=snvvcf:,nosnvvcf,output_dir:,tumour_bam:,normal_bam:,sample:,threads:,jvmheap:,ref_dir:,reference:,blacklist:,bafsnps:,viralreference:,ref_genome_version:,normal_sample:,tumour_sample:,rundir:,install_dir:,picardoptions:,help
+LONGOPTS=snvvcf:,nosnvvcf,output_dir:,tumour_bam:,normal_bam:,sample:,threads:,jvmheap:,ref_dir:,ref_genome_version:,normal_sample:,tumour_sample:,rundir:,install_dir:,picardoptions:,help
 ! PARSED=$(getopt --options=$OPTIONS --longoptions=$LONGOPTS --name "$0" -- "$@")
 if [[ ${PIPESTATUS[0]} -ne 0 ]]; then
 	# e.g. return value is 1
@@ -107,20 +74,8 @@ while true; do
 			snvvcf="nosnvvcf"
 			shift 1
 			;;
-		--viralreference)
-			viralreference="$2"
-			shift 2
-			;;
 		--ref_genome_version)
 			ref_genome_version="$2"
-			shift 2
-			;;
-		-b|--blacklist)
-			blacklist="$2"
-			shift 2
-			;;
-		--bafsnps)
-			bafsnps="$2"
 			shift 2
 			;;
 		-n|--normal_bam)
@@ -129,10 +84,6 @@ while true; do
 			;;
 		-o|--output_dir)
 			run_dir="$2"
-			shift 2
-			;;
-		-r|--reference)
-			ref_genome="$2"
 			shift 2
 			;;
 		-t|--tumour_bam)
@@ -208,16 +159,37 @@ assert_directory_exists $install_dir/gridss-purple-linx "install_dir"
 assert_file_exists $install_dir/gridss/gridss.sh "install_dir"
 assert_file_exists $install_dir/gridss/libgridss.R "install_dir"
 
-if [[ "$ref_genome_version" == "HG37" ]] ; then
-	echo "Running reference genome version: $ref_genome_version"
-	ref_genome=refgenomes/Homo_sapiens.GRCh37.GATK.illumina/Homo_sapiens.GRCh37.GATK.illumina.fasta
-elif if [[ "$ref_genome_version" == "HG38" ]] ; then
-	echo "Running reference genome version: $ref_genome_version"
-	ref_genome=refgenomes/Homo_sapiens.GRCh38/Homo_sapiens_assembly38.fasta
-else
-	echo "Invalid reference genome version: $ref_genome_version"
-	exit 1
-fi
+viralreference=refgenomes/human_virus/human_virus.fa
+blacklist=dbs/gridss/ENCFF001TDO.bed
+repeatmasker=dbs/repeatmasker/rm.fa.out.bed
+bafsnps=dbs/germline_het_pon/GermlineHetPon.vcf.gz
+gcprofile=dbs/gc/GC_profile.1000bp.cnp
+gridss_properties=dbs/gridss/gridss.properties
+breakpoint_hotspot=dbs/knowledgebases/KnownFusionPairs.bedpe
+breakend_pon=dbs/gridss_pon/gridss_pon_single_breakend.bed
+breakpoint_pon=dbs/gridss_pon/gridss_pon_breakpoint.bedpe
+viral_hosts_csv=dbs/knowledgebases/viral_host_ref.csv
+known_fusion_csv=dbs/knowledgebases/known_fusion_data.csv
+fragile_sites=dbs/knowledgebases/fragile_sites_hmf.csv
+line_elements=dbs/knowledgebases/line_elements.csv
+replication_origins=dbs/knowledgebases/heli_rep_origins.bed
+ensembl_data_dir=dbs/ensembl_data_cache
+driver_gene_panel=dbs/knowledgebases/DriverGenePanel.tsv
+known_hotspots_vcf=dbs/knowledgebases/KnownHotspots.vcf.gz
+rlib=rlib/
+case "$ref_genome_version" in
+	"HG37")
+		ref_genome=refgenomes/Homo_sapiens.GRCh37.GATK.illumina/Homo_sapiens.GRCh37.GATK.illumina.fasta
+		;;
+	"HG38")
+		ref_genome=refgenomes/Homo_sapiens.GRCh38/Homo_sapiens_assembly38.fasta
+		;;
+	*)
+		echo "Invalid reference genome version: $ref_genome_version"
+		exit 1
+		;;
+esac
+echo "Running reference genome version: $ref_genome_version" 1>&2
 
 rlib=$ref_dir/$rlib
 ref_genome=$ref_dir/$ref_genome
@@ -238,13 +210,6 @@ replication_origins=$ref_dir/$replication_origins
 ensembl_data_dir=$ref_dir/$ensembl_data_dir
 driver_gene_panel=$ref_dir/$driver_gene_panel
 known_hotspots_vcf=$ref_dir/${known_hotspots_vcf}
-
-
-assert_file_exists $ref_genome "reference"
-assert_file_exists $repeatmasker "repeatmasker"
-assert_file_exists $gcprofile "gcprofile"
-assert_file_exists $blacklist "blacklist"
-assert_file_exists $viralreference "viralreference"
 
 if [[ "$snvvcf" == "nosnvvcf" ]] ; then
 	echo "No somatic SNV VCF supplied."
@@ -309,15 +274,7 @@ cobalt_jar=$(find_jar COBALT_JAR cobalt)
 purple_jar=$(find_jar PURPLE_JAR purple)
 linx_jar=$(find_jar LINX_JAR sv-linx)
 
-#gridss_jar=$install_dir/gridss.jar
-#gripss_jar=$install_dir/gripss.jar
-#amber_jar=$install_dir/amber.jar
-#cobalt_jar=$install_dir/cobalt.jar
-#purple_jar=$install_dir/purple.jar
-#linx_jar=$install_dir/sv-linx.jar
-tabix=$install_dir/tabix
-
-for program in bwa sambamba samtools circos Rscript java ; do
+for program in bwa samtools circos Rscript java ; do
 	if ! which $program > /dev/null ; then
 		echo "Missing required dependency $program. $program must be on PATH" 1>&2
 		exit 1
@@ -349,12 +306,13 @@ fi
 mkdir -p $run_dir/logs $run_dir/gridss $run_dir/gripss $run_dir/amber $run_dir/purple
 log_prefix=$run_dir/logs/$(date +%Y%m%d_%H%M%S).$HOSTNAME.$$
 
-jvm_args="
-	-Dreference_fasta=$ref_genome \
+jvm_args=" \
+	-Dsamjdk.reference_fasta=$ref_genome \
 	-Dsamjdk.use_async_io_read_samtools=true \
 	-Dsamjdk.use_async_io_write_samtools=true \
 	-Dsamjdk.use_async_io_write_tribble=true \
-	-Dsamjdk.buffer_size=4194304"
+	-Dsamjdk.buffer_size=4194304 \
+	-Dsamjdk.async_io_read_threads=$threads"
 
 timestamp=$(date +%Y%m%d_%H%M%S)
 echo [$timestamp] run_dir=$run_dir
@@ -371,18 +329,6 @@ echo [$timestamp] jvmheap=$jvmheap
 echo [$timestamp] ref_genome_version=$ref_genome_version
 echo [$timestamp] rlib=$rlib
 echo [$timestamp] ref_genome=$ref_genome
-echo [$timestamp] viralreference=$viralreference
-echo [$timestamp] blacklist=$blacklist
-echo [$timestamp] repeatmasker=$repeatmasker
-echo [$timestamp] bafsnps=$bafsnps
-echo [$timestamp] gcprofile=$gcprofile
-echo [$timestamp] viral_hosts_csv=$viral_hosts_csv
-echo [$timestamp] known_fusion_data=$known_fusion_csv
-echo [$timestamp] fragile_sites=$fragile_sites
-echo [$timestamp] line_elements=$line_elements
-echo [$timestamp] replication_origins=$replication_origins
-echo [$timestamp] ensembl_data_dir=$ensembl_data_dir
-echo [$timestamp] driver_gene_panel=$driver_gene_panel
 echo [$timestamp] picardoptions=$picardoptions
 
 gridss_dir=$run_dir/gridss
@@ -404,17 +350,14 @@ if [[ ! -f $gridss_driver_vcf ]] ; then
 		-b ${blacklist} \
 		-c ${gridss_properties} \
 		--repeatmaskerbed ${repeatmasker} \
-		--jvmheap 31G ${normal_bam} ${tumour_bam}
+		--jvmheap $jvmheap \
+		${normal_bam} ${tumour_bam}
 
 	if [[ ! -f $gridss_driver_vcf ]] ; then
 		echo "Error creating $gridss_driver_vcf. Aborting" 1>&2
 		exit 1
 	fi
-
-	echo # Creating VCF Index
-
-	${tabix} ${gridss_driver_vcf} -p vcf
-
+	tabix ${gridss_driver_vcf} -p vcf
 else
 	echo "Skipping GRIDSS - ${gridss_driver_vcf} exists"
 fi
@@ -458,7 +401,8 @@ if [[ ! -f $gripss_somatic_vcf ]] ; then
 		-breakpoint_pon ${breakpoint_pon} \
 		-input_vcf ${gridss_unfiltered_vcf} \
 		-output_vcf ${gripss_somatic_vcf} \
-
+		-tumor ${tumour_sample} \
+		
 	if [[ ! -f $gripss_somatic_vcf ]] ; then
 		echo "Error creating $gripss_somatic_vcf. Aborting" 1>&2
 		exit 1
@@ -544,47 +488,31 @@ purple_vcf=$run_dir/purple/$tumour_sample.purple.sv.vcf.gz
 if [[ ! -f ${purple_vcf} ]] ; then
 
 	echo "Running PURPLE"
-
+	
+	purple_somatic_vcf_arg=""
 	if [[ -f "$snvvcf" ]] ; then
-		java -Dorg.jooq.no-logo=true -Xmx10G $jvm_args \
-			-jar ${purple_jar} \
-			-output_dir $run_dir/purple \
-			-reference $normal_sample \
-			-tumor $tumour_sample \
-			-amber $run_dir/amber \
-			-cobalt $run_dir/cobalt \
-			-gc_profile $gcprofile \
-			-ref_genome $ref_genome \
-			-structural_vcf ${gripss_somatic_filtered_vcf} \
-			-sv_recovery_vcf ${gripss_somatic_vcf} \
-			-driver_catalog -hotspots ${known_hotspots_vcf} \
-			-driver_gene_panel ${driver_gene_panel} \
-			-somatic_vcf $snvvcf \
-			-circos circos \
-			-threads ${threads}
-	else
-		java -Dorg.jooq.no-logo=true -Xmx10G $jvm_args \
-			-jar ${purple_jar} \
-			-output_dir $run_dir/purple \
-			-reference $normal_sample \
-			-tumor $tumour_sample \
-			-amber $run_dir/amber \
-			-cobalt $run_dir/cobalt \
-			-gc_profile $gcprofile \
-			-ref_genome $ref_genome \
-			-structural_vcf ${gripss_somatic_filtered_vcf} \
-			-sv_recovery_vcf ${gripss_somatic_vcf} \
-			-driver_catalog -hotspots ${known_hotspots_vcf} \
-			-driver_gene_panel ${driver_gene_panel} \
-			-circos circos \
-			-threads ${threads}
+		purple_somatic_vcf_arg="-somatic_vcf $snvvcf"
 	fi
-
+	java -Dorg.jooq.no-logo=true -Xmx10G $jvm_args \
+		-jar ${purple_jar} \
+		-output_dir $run_dir/purple \
+		-reference $normal_sample \
+		-tumor $tumour_sample \
+		-amber $run_dir/amber \
+		-cobalt $run_dir/cobalt \
+		-gc_profile $gcprofile \
+		-ref_genome $ref_genome \
+		-structural_vcf ${gripss_somatic_filtered_vcf} \
+		-sv_recovery_vcf ${gripss_somatic_vcf} \
+		-driver_catalog -hotspots ${known_hotspots_vcf} \
+		-driver_gene_panel ${driver_gene_panel} \
+		$purple_somatic_vcf_arg \
+		-circos circos \
+		-threads ${threads}
 	if [[ ! -f ${purple_vcf} ]] ; then
 		echo "Error running PURPLE - aborting" 2>&1
 		exit 1
 	fi
-
 else
 	echo "Skipping PURPLE - ${purple_vcf} exists" 1>&2
 fi
@@ -623,5 +551,6 @@ java -cp ${linx_jar} com.hartwig.hmftools.linx.visualiser.SvVisualiser \
 
 
 echo "GRIDSS - Purple - Linx script complete"
+
 
 
