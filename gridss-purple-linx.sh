@@ -4,12 +4,15 @@
 #
 # Example: ./gridss-purple-linx.sh -n /data/COLO829R_dedup.realigned.bam -t /data/COLO829T_dedup.realigned.bam -v /data/colo829snv.vcf.gz -s colo829 -v /data/COLO829v003T.somatic_caller_post_processed.vcf.gz
 # docker run  gridss/gridss-purple-linx
-
+EX_USAGE=64
+EX_NOINPUT=66
+EX_CANTCREAT=73
+EX_CONFIG=78
 set -o errexit -o pipefail -o noclobber -o nounset
 ! getopt --test > /dev/null 
 if [[ ${PIPESTATUS[0]} -ne 4 ]]; then
 	echo '`getopt --test` failed in this environment.'
-	exit 1
+	exit $EX_CONFIG
 fi
 
 run_dir=/data
@@ -24,8 +27,14 @@ normal_sample=""
 tumour_sample=""
 jvmheap="25g"
 ref_genome_version="HG37"
+purple_args=""
+amber_args=""
+cobalt_args=""
+linx_args=""
+gripss_args=""
+gridss_args=""
+tumour_only="false"
 
-picardoptions=""
 validation_stringency="STRICT"
 usage_msg="Usage: gridss-purple-linx.sh
 
@@ -44,15 +53,22 @@ Optional parameters:
 	--normal_sample: sample name of matched normal ({sample}_N) 
 	--tumour_sample: sample name of tumour. Must match the somatic \$snvvcf sample name. ({sample}_T) 
 	--jvmheap: maximum java heap size for high-memory steps ($jvmheap)
+	--gridss_args: additional arguments to GRIDSS
+	--gripss_args: additional arguments to GRIPSS
+	--amber_args: additional arguments to AMBER
+	--cobalt_args: additional arguments to COBALT
+	--purple_args: additional arguments to PURPLE
+	--linx_args: additional arguments to LINX
+	--validation_stringency: htsjdk validation_stringency ($validation_stringency)
 	--help: print this message and exit
 "
 usage() {
 	echo "$usage_msg" 1>&2
-	exit 1
+	exit $EX_USAGE
 }
 
 OPTIONS=v:o:t:n:s:r:b:h
-LONGOPTS=snvvcf:,nosnvvcf,output_dir:,tumour_bam:,normal_bam:,sample:,threads:,jvmheap:,ref_dir:,ref_genome_version:,normal_sample:,tumour_sample:,rundir:,install_dir:,picardoptions:,help
+LONGOPTS=snvvcf:,nosnvvcf,output_dir:,tumour_bam:,normal_bam:,sample:,threads:,jvmheap:,ref_dir:,ref_genome_version:,normal_sample:,tumour_sample:,rundir:,install_dir:,help,gridss_args:,gripss_args:,amber_args:,cobalt_args:,purple_args:,linx_args:
 ! PARSED=$(getopt --options=$OPTIONS --longoptions=$LONGOPTS --name "$0" -- "$@")
 if [[ ${PIPESTATUS[0]} -ne 0 ]]; then
 	# e.g. return value is 1
@@ -119,14 +135,33 @@ while true; do
 			ref_dir="$2"
 			shift 2
 			;;
-		--picardoptions)
-			# pass-through to gridss.sh argument of the same name
-			picardoptions="$2"
-			shift 2
-			;;
 		-h|--help)
 			usage
 			exit 1
+			;;
+		--gridss_args)
+			gridss_args="$2"
+			shift 2
+			;;
+		--gripss_args)
+			gripss_args="$2"
+			shift 2
+			;;
+		--amber_args)
+			amber_args="$2"
+			shift 2
+			;;
+		--cobalt_args)
+			cobalt_args="$2"
+			shift 2
+			;;
+		--purple_args)
+			purple_args="$2"
+			shift 2
+			;;
+		--linx_args)
+			linx_args="$2"
+			shift 2
 			;;
 		--)
 			shift
@@ -139,18 +174,21 @@ while true; do
 			;;
 	esac
 done
+write_status() { # Before logging initialised
+	echo "$(date): $1" 1>&2
+}
 # $1: variable containing filename
 # $2: command line argument name
 assert_file_exists() {
 	if [[ ! -f "$1" ]] ; then
-		echo "File $1 not found. Specify using the command line argument --$2" 1>&2
-		exit 1
+		write_status "File $1 not found. Specify using the command line argument --$2"
+		exit $EX_NOINPUT
 	fi
 }
 assert_directory_exists() {
 	if [[ ! -d "$1" ]] ; then
-		echo "Directory $1 not found. Specify using the command line argument --$2" 1>&2
-		exit 1
+		write_status "Directory $1 not found. Specify using the command line argument --$2"
+		exit $EX_NOINPUT
 	fi
 }
 assert_directory_exists $install_dir/gridss "install_dir"
@@ -185,11 +223,11 @@ case "$ref_genome_version" in
 		ref_genome=refgenomes/Homo_sapiens.GRCh38/Homo_sapiens_assembly38.fasta
 		;;
 	*)
-		echo "Invalid reference genome version: $ref_genome_version"
-		exit 1
+		write_status "Invalid reference genome version: $ref_genome_version"
+		exit $EX_CONFIG
 		;;
 esac
-echo "Running reference genome version: $ref_genome_version" 1>&2
+write_status "Running reference genome version: $ref_genome_version"
 
 rlib=$ref_dir/$rlib
 ref_genome=$ref_dir/$ref_genome
@@ -211,47 +249,59 @@ ensembl_data_dir=$ref_dir/$ensembl_data_dir
 driver_gene_panel=$ref_dir/$driver_gene_panel
 known_hotspots_vcf=$ref_dir/${known_hotspots_vcf}
 
+if [[ "$normal_bam" == "" ]] && [[ "$normal_sample" == "" ]] ; then
+	tumour_only=true
+fi
+
 if [[ "$snvvcf" == "nosnvvcf" ]] ; then
-	echo "No somatic SNV VCF supplied."
+	write_status "No somatic SNV VCF supplied."
 elif [[ ! -f "$snvvcf" ]] ; then
-	echo "Missing somatic SNV VCF. A SNV VCF with the AD genotype field populated is required." 1>&2
-	echo "Use the script for generating this VCF with strelka if you have not already generated a compatible VCF." 1>&2
-	exit 1
+	write_status "Missing somatic SNV VCF. A SNV VCF with the AD genotype field populated is required."
+	write_status "Use the script for generating this VCF with strelka if you have not already generated a compatible VCF."
+	exit $EX_NOINPUT
 fi
 if [[ ! -f "$tumour_bam" ]] ; then
-	echo "Missing tumour BAM" 1>&2
-	exit 1
+	write_status "Missing tumour BAM"
+	exit $EX_NOINPUT
 fi
-if [[ ! -f "$normal_bam" ]] ; then
-	echo "Missing normal BAM" 1>&2
-	exit 1
+if [[ ! $tumour_only == true ]] ; then
+	if [[ ! -f "$normal_bam" ]] ; then
+		write_status "Missing normal BAM"
+		exit $EX_NOINPUT
+	fi
 fi
 mkdir -p "$run_dir"
 if [[ ! -d "$run_dir" ]] ; then
-	echo "Unable to create $run_dir" 1>&2
-	exit 1
+	write_status "Unable to create $run_dir"
+	exit $EX_CANTCREAT
 fi
 if [[ ! -d "$ref_dir" ]] ; then
-	echo "Could not find reference data directory $ref_dir" 1>&2
-	exit 1
+	write_status "Could not find reference data directory $ref_dir"
+	exit $EX_NOINPUT
 fi
 if [[ ! -f "$ref_genome" ]] ; then
-	echo "Missing reference genome $ref_genome - specify with -r " 1>&2
-	exit 1
+	write_status "Missing reference genome $ref_genome - specify with -r "
+	exit $EX_NOINPUT
 fi
 if [[ -z "$sample" ]] ; then
 	sample=$(basename $tumour_bam .bam)
 fi
 if [[ "$threads" -lt 1 ]] ; then
-	echo "Illegal thread count: $threads" 1>&2
-	exit 1
+	write_status "Illegal thread count: $threads"
+	exit $EX_CONFIG
 fi
 joint_sample_name=$sample
-if [[ -z "$normal_sample" ]] ; then
-	normal_sample=${sample}R
-fi
-if [[ -z "$tumour_sample" ]] ; then
-	tumour_sample=${sample}T
+if [[ $tumour_only == true ]] ; then
+	if [[ -z "$tumour_sample" ]] ; then
+		tumour_sample=${sample}
+	fi
+else
+	if [[ -z "$normal_sample" ]] ; then
+		normal_sample=${sample}R
+	fi
+	if [[ -z "$tumour_sample" ]] ; then
+		tumour_sample=${sample}T
+	fi
 fi
 export R_LIBS="$rlib:${R_LIBS:-}"
 base_path=$(dirname $(readlink $0 || echo $0))
@@ -262,8 +312,8 @@ find_jar() {
 	if [[ -f "${!env_name:-}" ]] ; then
 		echo "${!env_name}"
 	else
-		echo "Unable to find $2 jar. Specify using the environment variant $env_name" 1>&2
-		exit 1
+		write_status "Unable to find $2 jar. Specify using the environment variant $env_name"
+		exit $EX_CONFIG
 	fi
 }
 
@@ -276,31 +326,31 @@ linx_jar=$(find_jar LINX_JAR sv-linx)
 
 for program in bwa samtools circos Rscript java ; do
 	if ! which $program > /dev/null ; then
-		echo "Missing required dependency $program. $program must be on PATH" 1>&2
-		exit 1
+		write_status "Missing required dependency $program. $program must be on PATH"
+		exit $EX_CONFIG
 	fi
 done
 for rpackage in tidyverse devtools assertthat testthat NMF stringdist stringr argparser R.cache "copynumber" StructuralVariantAnnotation "VariantAnnotation" "rtracklayer" "BSgenome" "org.Hs.eg.db" ; do
 	if ! Rscript -e "installed.packages()" | grep $rpackage > /dev/null ; then
-		echo "Missing R package $rpackage" 1>&2
-		exit 1
+		write_status "Missing R package $rpackage"
+		exit $EX_CONFIG
 	fi
 done
 
 if ! java -Xms$jvmheap -cp $gridss_jar gridss.Echo ; then
-	echo "Failure invoking java with --jvmheap parameter of \"$jvmheap\". Specify a JVM heap size (e.g. \"20g\") that is valid for this machine." 1>&2
-	exit 1
+	write_status "Failure invoking java with --jvmheap parameter of \"$jvmheap\". Specify a JVM heap size (e.g. \"20g\") that is valid for this machine."
+	exit $EX_CONFIG
 fi
 
 if [[ ! -s $ref_genome.bwt ]] ; then
-	echo "Missing bwa index for $ref_genome. Creating (this is a once-off initialisation step)" 1>&2
+	write_status "Missing bwa index for $ref_genome. Creating (this is a once-off initialisation step)"
 	bwa index $ref_genome
 fi
 
 if [[ ! -s $ref_genome.bwt ]] ; then
-	echo "bwa index for $ref_genome not found." 1>&2
-	echo "If you are running in a docker container, make sure refdata has been mounted read-write." 1>&2
-	exit 1
+	write_status "bwa index for $ref_genome not found."
+	write_status "If you are running in a docker container, make sure refdata has been mounted read-write."
+	exit $EX_NOINPUT
 fi
 
 mkdir -p $run_dir/logs $run_dir/gridss $run_dir/gripss $run_dir/amber $run_dir/purple
@@ -314,22 +364,20 @@ jvm_args=" \
 	-Dsamjdk.buffer_size=4194304 \
 	-Dsamjdk.async_io_read_threads=$threads"
 
-timestamp=$(date +%Y%m%d_%H%M%S)
-echo [$timestamp] run_dir=$run_dir
-echo [$timestamp] ref_dir=$ref_dir
-echo [$timestamp] install_dir=$install_dir
-echo [$timestamp] tumour_bam=$tumour_bam
-echo [$timestamp] normal_bam=$normal_bam
-echo [$timestamp] snvvcf=$snvvcf
-echo [$timestamp] threads=$threads
-echo [$timestamp] sample=$sample
-echo [$timestamp] normal_sample=$normal_sample
-echo [$timestamp] tumour_sample=$tumour_sample
-echo [$timestamp] jvmheap=$jvmheap
-echo [$timestamp] ref_genome_version=$ref_genome_version
-echo [$timestamp] rlib=$rlib
-echo [$timestamp] ref_genome=$ref_genome
-echo [$timestamp] picardoptions=$picardoptions
+write_status "run_dir=$run_dir"
+write_status "ref_dir=$ref_dir"
+write_status "install_dir=$install_dir"
+write_status "tumour_bam=$tumour_bam"
+write_status "normal_bam=$normal_bam"
+write_status "snvvcf=$snvvcf"
+write_status "threads=$threads"
+write_status "sample=$sample"
+write_status "normal_sample=$normal_sample"
+write_status "tumour_sample=$tumour_sample"
+write_status "jvmheap=$jvmheap"
+write_status "ref_genome_version=$ref_genome_version"
+write_status "rlib=$rlib"
+write_status "ref_genome=$ref_genome"
 
 gridss_dir=$run_dir/gridss
 assembly_bam=$gridss_dir/$joint_sample_name.assembly.bam
@@ -337,9 +385,7 @@ gridss_driver_vcf=$gridss_dir/${tumour_sample}.gridss.driver.vcf.gz
 gridss_unfiltered_vcf=$gridss_dir/${tumour_sample}.gridss.unfiltered.vcf.gz
 
 if [[ ! -f $gridss_driver_vcf ]] ; then
-
-	echo "Running GRIDSS"
-
+	write_status "Running GRIDSS"
 	$install_dir/gridss/gridss.sh \
 		-o ${gridss_driver_vcf} \
 		-a $assembly_bam \
@@ -351,21 +397,22 @@ if [[ ! -f $gridss_driver_vcf ]] ; then
 		-c ${gridss_properties} \
 		--repeatmaskerbed ${repeatmasker} \
 		--jvmheap $jvmheap \
+		$gridss_args \
 		${normal_bam} ${tumour_bam}
-
 	if [[ ! -f $gridss_driver_vcf ]] ; then
-		echo "Error creating $gridss_driver_vcf. Aborting" 1>&2
+		write_status  "Error creating $gridss_driver_vcf. Aborting" 1>&2
 		exit 1
 	fi
-	tabix ${gridss_driver_vcf} -p vcf
+	# GRIDSS #382 work-around
+	if [[ ! -f ${gridss_driver_vcf}.tbi ]] ; then
+		mv $(dirname ${gridss_driver_vcf})/gridss.tmp.$(basename ${gridss_driver_vcf}).tbi ${gridss_driver_vcf}.tbi
+	fi
 else
-	echo "Skipping GRIDSS - ${gridss_driver_vcf} exists"
+	write_status "Skipping GRIDSS - ${gridss_driver_vcf} exists"
 fi
 
 if [[ ! -f $gridss_unfiltered_vcf ]] ; then
-
-	echo "Running GRIDSS Annotations"
-
+	write_status "Running GRIDSS Annotations"
 	java -Xmx8G -Dsamjdk.create_index=true \
 		-Dsamjdk.use_async_io_read_samtools=true \
 		-Dsamjdk.use_async_io_write_samtools=true \
@@ -376,24 +423,21 @@ if [[ ! -f $gridss_unfiltered_vcf ]] ; then
 		INPUT=${gridss_driver_vcf} \
 		OUTPUT=${gridss_unfiltered_vcf} \
 		ALIGNMENT=APPEND WORKER_THREADS=${threads} \
-
+		 2>&1 | tee $log_prefix.gridss.AnnotateInsertedSequence.log
 	if [[ ! -f $gridss_unfiltered_vcf ]] ; then
-		echo "Error creating $gridss_unfiltered_vcf. Aborting" 1>&2
+		write_status "Error creating $gridss_unfiltered_vcf. Aborting" 1>&2
 		exit 1
 	fi
 else
-	echo "Skipping GRIDSS Annotations = ${gridss_unfiltered_vcf} exists"
+	write_status "Skipping GRIDSS Annotations = ${gridss_unfiltered_vcf} exists"
 fi
 
 
 gripss_dir=$run_dir/gripss
 gripss_somatic_vcf=$gripss_dir/${tumour_sample}.gripss.somatic.vcf.gz
 gripss_somatic_filtered_vcf=$gripss_dir/${tumour_sample}.gripss.somatic.filtered.vcf.gz
-
 if [[ ! -f $gripss_somatic_vcf ]] ; then
-
-	echo "Running GRIPSS"
-
+	write_status "Running GRIPSS"
 	java -Xmx24G -cp ${gripss_jar} com.hartwig.hmftools.gripss.GripssApplicationKt \
 		-ref_genome ${ref_genome} \
 		-breakpoint_hotspot ${breakpoint_hotspot} \
@@ -402,77 +446,77 @@ if [[ ! -f $gripss_somatic_vcf ]] ; then
 		-input_vcf ${gridss_unfiltered_vcf} \
 		-output_vcf ${gripss_somatic_vcf} \
 		-tumor ${tumour_sample} \
-		
+		$gripss_args 2>&1 | tee $log_prefix.gripss.log
 	if [[ ! -f $gripss_somatic_vcf ]] ; then
-		echo "Error creating $gripss_somatic_vcf. Aborting" 1>&2
+		write_status "Error creating $gripss_somatic_vcf. Aborting"
 		exit 1
 	fi
-
 	java -Xmx24G -cp ${gripss_jar} com.hartwig.hmftools.gripss.GripssHardFilterApplicationKt \
 		-input_vcf ${gripss_somatic_vcf} \
 		-output_vcf ${gripss_somatic_filtered_vcf} \
 
 	if [[ ! -f ${gripss_somatic_filtered_vcf} ]] ; then
-		echo "Error creating ${gripss_somatic_filtered_vcf} - aborting" 1>&2
+		write_status "Error creating ${gripss_somatic_filtered_vcf} - aborting"
 		exit 1
 	fi
 else
-	echo "Skipping GRIPSS - ${gripss_somatic_vcf} exists"
+	write_status "Skipping GRIPSS - ${gripss_somatic_vcf} exists"
 fi
 
 mkdir -p $run_dir/amber
 amber_vcf=$run_dir/amber/$tumour_sample.amber.baf.vcf.gz
 if [[ ! -f ${amber_vcf} ]] ; then
-
-	echo "Running AMBER"
-
+	write_status "Running AMBER"
+	if [[ $tumour_only != true ]] ; then
+		amber_args="-reference $normal_sample -reference_bam $normal_bam $amber_args"
+	else
+		amber_args="-tumor_only $amber_args"
+	fi
 	java -Xmx10G $jvm_args \
 		-jar $amber_jar \
 		-threads $threads \
 		-tumor $tumour_sample \
-		-reference $normal_sample \
 		-tumor_bam $tumour_bam \
-		-reference_bam $normal_bam \
 		-loci $bafsnps \
 		-ref_genome $ref_genome \
 		-validation_stringency $validation_stringency \
-		-output_dir $run_dir/amber 2>&1 | tee $log_prefix.amber.log
-
+		-output_dir $run_dir/amber \
+		$amber_args 2>&1 | tee $log_prefix.amber.log
 	if [[ ! -f ${amber_vcf} ]] ; then
-		echo "Error running AMBER - aborting" 2>&1
+		write_status "Error running AMBER - aborting"
 		exit 1
 	fi
 else
-	echo "Skipping AMBER - ${amber_vcf} exists"
+	write_status "Skipping AMBER - ${amber_vcf} exists"
 fi
 
 
 mkdir -p $run_dir/cobalt
 cobalt_file=$run_dir/cobalt/$tumour_sample.cobalt.ratio.pcf
 if [[ ! -f ${cobalt_file} ]] ; then
-
-	echo "Running COBALT"
-
+	write_status "Running COBALT"
+	if [[ $tumour_only != true ]] ; then
+		cobalt_args="-reference $normal_sample -reference_bam $normal_bam $cobalt_args"
+	else
+		cobalt_args="-tumor_only $cobalt_args"
+	fi
 	java -Xmx10G $jvm_args \
 		-cp ${cobalt_jar} com.hartwig.hmftools.cobalt.CountBamLinesApplication \
 		-threads ${threads} \
-		-reference ${normal_sample} \
-		-reference_bam ${normal_bam} \
 		-tumor ${tumour_sample} \
 		-tumor_bam ${tumour_bam} \
 		-ref_genome $ref_genome \
 		-output_dir ${run_dir}/cobalt \
 		-gc_profile ${gcprofile} \
 		-threads ${threads} \
+		$cobalt_args \
 		2>&1 | tee $log_prefix.cobalt.log
-
 	if [[ ! -f ${cobalt_file} ]] ; then
-		echo "Error running COBALT - aborting" 2>&1
+		write_status "Error running COBALT - aborting"
 		exit 1
 	fi
-
 else
-	echo "Skipping COBALT - ${cobalt_file} exists" 1>&2
+	write_status "Skipping COBALT - ${cobalt_file} exists"
 fi
 
 mkdir -p $run_dir/purple
@@ -484,19 +528,17 @@ if [[ -z "${LOGNAME:-}" ]] ; then
 fi
 
 purple_vcf=$run_dir/purple/$tumour_sample.purple.sv.vcf.gz
-
 if [[ ! -f ${purple_vcf} ]] ; then
-
-	echo "Running PURPLE"
-	
-	purple_somatic_vcf_arg=""
+	write_status "Running PURPLE"
 	if [[ -f "$snvvcf" ]] ; then
-		purple_somatic_vcf_arg="-somatic_vcf $snvvcf"
+		purple_args="-somatic_vcf $snvvcf $purple_args"
+	fi
+	if [[ $tumour_only != true ]] ; then
+		purple_args="-reference $normal_sample $purple_args"
 	fi
 	java -Dorg.jooq.no-logo=true -Xmx10G $jvm_args \
 		-jar ${purple_jar} \
 		-output_dir $run_dir/purple \
-		-reference $normal_sample \
 		-tumor $tumour_sample \
 		-amber $run_dir/amber \
 		-cobalt $run_dir/cobalt \
@@ -506,21 +548,21 @@ if [[ ! -f ${purple_vcf} ]] ; then
 		-sv_recovery_vcf ${gripss_somatic_vcf} \
 		-driver_catalog -hotspots ${known_hotspots_vcf} \
 		-driver_gene_panel ${driver_gene_panel} \
-		$purple_somatic_vcf_arg \
 		-circos circos \
-		-threads ${threads}
+		-threads ${threads} \
+		$purple_args \
+		2>&1 | tee $log_prefix.purple.log
 	if [[ ! -f ${purple_vcf} ]] ; then
-		echo "Error running PURPLE - aborting" 2>&1
+		write_status "Error running PURPLE - aborting"
 		exit 1
 	fi
 else
-	echo "Skipping PURPLE - ${purple_vcf} exists" 1>&2
+	write_status "Skipping PURPLE - ${purple_vcf} exists"
 fi
 
 mkdir -p $run_dir/linx
 
-echo "Running LINX"
-
+write_status "Running LINX"
 java -Xmx8G -Xms4G -jar ${linx_jar} \
 	-ref_genome ${ref_genome} \
 	-ref_genome_version ${ref_genome_version} \
@@ -538,9 +580,9 @@ java -Xmx8G -Xms4G -jar ${linx_jar} \
 	-driver_gene_panel ${driver_gene_panel} \
 	-check_drivers \
 	-write_vis_data \
-
-echo "Generating LINE visualisations"
-
+	$linx_args \
+	2>&1 | tee $log_prefix.linx.log
+write_status "Generating LINE visualisations"
 java -cp ${linx_jar} com.hartwig.hmftools.linx.visualiser.SvVisualiser \
 	-sample ${tumour_sample} \
 	-plot_out $run_dir/linx/plot/ \
@@ -549,8 +591,7 @@ java -cp ${linx_jar} com.hartwig.hmftools.linx.visualiser.SvVisualiser \
 	-circos circos \
 	-threads $threads
 
-
-echo "GRIDSS - Purple - Linx script complete"
-
-
+write_status "GRIDSS - Purple - Linx script complete"
+trap - EXIT
+exit 0 # success!
 
