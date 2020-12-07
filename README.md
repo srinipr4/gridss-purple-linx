@@ -42,7 +42,6 @@ Providing a somatic point-mutation VCF can improve Purple's copy number fit for 
 The ulimit increase is due to GRIDSS multi-threading using many file handles.
 
 ### Optional arguments
-
 |Argument|Description|Default|
 |---|---|---|
 |--output_dir|Output directory|/data/|
@@ -65,14 +64,14 @@ If the BAMs have been aligned with a different ref genome than the one provided 
 - realign the reads to the reference genome supplied with the reference genome files in /ref_data/refgenomes/
 
 ## Running the Pipeline Directly
-Run the toolkit pipeline directly as follows:
+As an alternative to running the pipeline via the docker image, the following script can be called directly to execute each component in turn:
 
 ```
 install_dir=~/
-GRIDSS_VERSION=2.6.2
-COBALT_VERSION=1.7
-PURPLE_VERSION=2.34
-LINX_VERSION=1.4
+GRIDSS_VERSION=2.9.4
+COBALT_VERSION=1.11
+PURPLE_VERSION=2.51
+LINX_VERSION=1.12
 export GRIDSS_JAR=$install_dir/gridss/gridss-${GRIDSS_VERSION}-gridss-jar-with-dependencies.jar
 export AMBER_JAR=$install_dir/hmftools/amber-${AMBER_VERSION}-jar-with-dependencies.jar
 export COBALT_JAR=$install_dir/hmftools/count-bam-lines-${COBALT_VERSION}-jar-with-dependencies.jar
@@ -80,10 +79,10 @@ export PURPLE_JAR=$install_dir/hmftools/purity-ploidy-estimator-${PURPLE_VERSION
 export LINX_JAR=$install_dir/hmftools/sv-linx-${LINX_VERSION}-jar-with-dependencies.jar
 
 $install_dir/gridss-purple-linx/gridss-purple-linx.sh \
-	-n ~/colo829_example/COLO829R_dedup.realigned.bam \
-	-t ~/colo829_example/COLO829T_dedup.realigned.bam \
-	-s COLO829 \
-	--snvvcf ~/colo829_example/COLO829.somatic_caller_post_processed.vcf.gz \
+	-n /path_to_sample_data/SAMPLE.sv.normal.bam \
+	-t /path_to_sample_data/SAMPLE.sv.tumor.bam \
+	-s SAMPLE \
+	--snvvcf /path_to_sample_data/SAMPLE.somatic.vcf.gz \
 	--ref_dir ~/refdata \
 	--install_dir $install_dir \
 	--rundir ~/colo829_example
