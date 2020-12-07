@@ -7,10 +7,11 @@ The GRIDSS/PURPLE/LINX toolkit takes a pair of match tumour/normal BAM files, an
 - [PURPLE](https://github.com/hartwigmedical/hmftools/tree/master/purity-ploidy-estimator): performs allele specific copy number calling
 - [LINX](https://github.com/hartwigmedical/hmftools/tree/master/sv-linx): performs event classification, and visualisation
 
-The simplest way to run the toolkit is through the docker image.
+The simplest way to run the toolkit is via the docker image.
 
 ## Reference data
-The toolkit requires multiple reference data files and these have been packaged into a single file for HG37 and HG38.
+
+The toolkit requires multiple reference data files and these have been packaged into a single file for HG37 and HG38.  These can be downloaded from the following locations:
 
 |Reference Genome | Download Location |
 |---|---|
@@ -26,7 +27,7 @@ Run docker image as follows:
 
 ```
 docker run -v /path_to_ref_data/:/refdata \
-	-v /path_sample_data/:/data/:Z \
+	-v /path_to_sample_data/:/data/:Z \
 	gridss/gridss-purple-linx:latest \
 	-n /data/SAMPLE.sv.normal.bam \
 	-t /data/SAMPLE.sv.tumor.bam \
@@ -41,10 +42,6 @@ Providing a somatic point-mutation VCF can improve Purple's copy number fit for 
 The ulimit increase is due to GRIDSS multi-threading using many file handles.
 
 ### Optional arguments
-
-The driver script has many optional arguments.
-The default values match those required to run the Docker image using the hg19 reference data.
-The docker image assumes the output directory is `/data`, and the reference data package is located in `/refdata`
 
 |Argument|Description|Default|
 |---|---|---|
