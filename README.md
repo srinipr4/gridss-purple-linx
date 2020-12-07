@@ -36,7 +36,7 @@ docker run -v /path_to_ref_data/:/refdata \
 	--ulimit nofile=100000:100000
 ```
 
-Providing a somatic point-mutation VCF can improve Purple's copy number fit for samples with little aneuploidy. This file must have the AD field populated. Otherwise use the argument `--nosnvvcf`.
+Providing a somatic point-mutation VCF can improve Purple's copy number fit for samples with low aneuploidy. This file must have the AD field populated. Otherwise use the argument `--nosnvvcf`.
 
 The ulimit increase is due to GRIDSS multi-threading using many file handles.
 
