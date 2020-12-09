@@ -24,7 +24,7 @@ RUN Rscript -e 'options(Ncpus=16L, repos="https://cloud.r-project.org/");BiocMan
 
 LABEL version="1"
 LABEL software="GRIDSS PURPLE LINX"
-LABEL software.version="1.3.1"
+LABEL software.version="1.3.2"
 LABEL about.summary="Somatic GRIDSS/PURPLE/LINX SV/CNV detection and interpretation pipeline"
 LABEL about.home="https://github.com/hartwigmedical/gridss-purple-linx"
 LABEL about.tags="Genomics"

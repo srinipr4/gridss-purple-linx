@@ -386,6 +386,11 @@ gridss_unfiltered_vcf=$gridss_dir/${tumour_sample}.gridss.unfiltered.vcf.gz
 
 if [[ ! -f $gridss_driver_vcf ]] ; then
 	write_status "Running GRIDSS"
+	if [[ "$normal_sample" != "" ]] ; then
+		$gridss_args=" --labels $normal_sample,$tumour_sample $gridss_args"
+	else
+		$gridss_args=" --labels $tumour_sample $gridss_args"
+	fi
 	$install_dir/gridss/gridss.sh \
 		-o ${gridss_driver_vcf} \
 		-a $assembly_bam \
