@@ -15,8 +15,8 @@ The toolkit requires multiple reference data files and these have been packaged 
 
 |Reference Genome | Download Location |
 |---|---|
-|hg37|https://resources.hartwigmedicalfoundation.nl/ then navigate to HMFTools-Resources/GRIDSS-Purple-Linx-Docker/gpl_ref_data_hg37.gz|
-|hg38|https://resources.hartwigmedicalfoundation.nl/ then navigate to HMFTools-Resources/GRIDSS-Purple-Linx-Docker/gpl_ref_data_hg38.gz|
+|GRCh37|https://resources.hartwigmedicalfoundation.nl/ then navigate to HMFTools-Resources/GRIDSS-Purple-Linx-Docker/gpl_ref_data_hg37.gz|
+|GRCh38|https://resources.hartwigmedicalfoundation.nl/ then navigate to HMFTools-Resources/GRIDSS-Purple-Linx-Docker/gpl_ref_data_hg38.gz|
 
 ## Running the Docker Image Pipeline
 The docker images assumes the following:
