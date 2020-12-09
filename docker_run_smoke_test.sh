@@ -11,5 +11,11 @@ docker run --ulimit nofile=100000:100000 \
 	--tumour_sample CPCT12345678T \
 	--snvvcf /data/CPCT12345678T.somatic_caller_post_processed.vcf.gz \
 	--jvmheap 15g \
-	-- validation_stringency LENIENT \
+	--threads 4 \
+
+
+
+
+
+
 
