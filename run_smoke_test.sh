@@ -33,4 +33,5 @@ bash -x gridss-purple-linx.sh \
 	--tumour_sample CPCT12345678T \
 	--ref_dir $ref_data \
 	--install_dir $install_dir \
+	--gridss_args "--jvmheap 14g"
 	
