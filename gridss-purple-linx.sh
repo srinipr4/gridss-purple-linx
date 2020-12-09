@@ -220,7 +220,7 @@ case "$ref_genome_version" in
 		ref_genome=refgenomes/Homo_sapiens.GRCh37.GATK.illumina/Homo_sapiens.GRCh37.GATK.illumina.fasta
 		;;
 	"HG38")
-		ref_genome=refgenomes/Homo_sapiens.GRCh38/Homo_sapiens_assembly38.fasta
+		ref_genome=refgenomes/Homo_sapiens.GRCh38/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna
 		;;
 	*)
 		write_status "Invalid reference genome version: $ref_genome_version"
