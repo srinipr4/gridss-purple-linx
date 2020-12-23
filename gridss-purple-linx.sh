@@ -540,6 +540,8 @@ if [[ ! -f ${purple_vcf} ]] ; then
 	fi
 	if [[ $tumour_only != true ]] ; then
 		purple_args="-reference $normal_sample $purple_args"
+	else
+		purple_args="-reference DIPLOID -tumor_only $purple_args"
 	fi
 	java -Dorg.jooq.no-logo=true -Xmx10G $jvm_args \
 		-jar ${purple_jar} \
