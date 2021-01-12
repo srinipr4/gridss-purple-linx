@@ -35,7 +35,7 @@ gripss_args=""
 gridss_args=""
 tumour_only="false"
 
-validation_stringency="STRICT"
+validation_stringency="LENIENT"
 usage_msg="Usage: gridss-purple-linx.sh
 
 Required command line arguments:

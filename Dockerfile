@@ -1,7 +1,7 @@
 FROM gridss/gridss:2.9.4
 LABEL base.image="gridss/gridss:2.9.4"
 
-RUN apt-get update; DEBIAN_FRONTEND=noninteractive apt-get install -y wget pkg-config libgd-dev libmagick++-dev ; apt-get clean ; rm -rf /var/lib/apt/lists/*
+RUN apt-get update; DEBIAN_FRONTEND=noninteractive apt-get install -y git vi wget pkg-config libgd-dev libmagick++-dev ; apt-get clean ; rm -rf /var/lib/apt/lists/*
 
 # circos installation
 # not using the ubuntu circos package as it places the conf files in /etc/circos which breaks << include etc/*.conf >> as CIRCOS_PATH/etc/circos is not on the circos search path
