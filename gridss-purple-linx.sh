@@ -27,6 +27,7 @@ normal_sample=""
 tumour_sample=""
 jvmheap="25g"
 ref_genome_version="HG37"
+validation_stringency="STRICT"
 purple_args=""
 amber_args=""
 cobalt_args=""
@@ -35,7 +36,6 @@ gripss_args=""
 gridss_args=""
 tumour_only="false"
 
-validation_stringency="STRICT"
 usage_msg="Usage: gridss-purple-linx.sh
 
 Required command line arguments:
@@ -68,7 +68,7 @@ usage() {
 }
 
 OPTIONS=v:o:t:n:s:r:b:h
-LONGOPTS=snvvcf:,nosnvvcf,output_dir:,tumour_bam:,normal_bam:,sample:,threads:,jvmheap:,ref_dir:,ref_genome_version:,normal_sample:,tumour_sample:,rundir:,install_dir:,help,gridss_args:,gripss_args:,amber_args:,cobalt_args:,purple_args:,linx_args:
+LONGOPTS=snvvcf:,nosnvvcf,output_dir:,tumour_bam:,normal_bam:,sample:,threads:,jvmheap:,ref_dir:,ref_genome_version:,normal_sample:,tumour_sample:,rundir:,validation_stringency:,install_dir:,help,gridss_args:,gripss_args:,amber_args:,cobalt_args:,purple_args:,linx_args:
 ! PARSED=$(getopt --options=$OPTIONS --longoptions=$LONGOPTS --name "$0" -- "$@")
 if [[ ${PIPESTATUS[0]} -ne 0 ]]; then
 	# e.g. return value is 1
@@ -138,6 +138,10 @@ while true; do
 		-h|--help)
 			usage
 			exit 1
+			;;
+		--validation_stringency)
+			validation_stringency="$2"
+			shift 2
 			;;
 		--gridss_args)
 			gridss_args="$2"
@@ -375,6 +379,7 @@ write_status "sample=$sample"
 write_status "normal_sample=$normal_sample"
 write_status "tumour_sample=$tumour_sample"
 write_status "jvmheap=$jvmheap"
+write_status "validation_stringency=$validation_stringency"
 write_status "ref_genome_version=$ref_genome_version"
 write_status "rlib=$rlib"
 write_status "ref_genome=$ref_genome"
