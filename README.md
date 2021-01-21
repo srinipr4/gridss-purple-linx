@@ -18,6 +18,16 @@ The toolkit requires multiple reference data files and these have been packaged 
 |GRCh37|https://resources.hartwigmedicalfoundation.nl/ then navigate to HMFTools-Resources/GRIDSS-Purple-Linx-Docker/gpl_ref_data_hg37.gz|
 |GRCh38|https://resources.hartwigmedicalfoundation.nl/ then navigate to HMFTools-Resources/GRIDSS-Purple-Linx-Docker/gpl_ref_data_hg38.gz|
 
+## Download the docker image
+The docker image can be downloaded from [dockerhub](https://hub.docker.com/r/gridss/gridss-purple-linx) with the `latest` tag.
+For alternative versions, all tags can be found [here](https://hub.docker.com/r/gridss/gridss-purple-linx/tags).
+
+```
+# Download the latest version of the docker images
+docker pull gridss/gridss-purple-linx:latest
+```
+
+
 ## Running the Docker Image Pipeline
 The docker images assumes the following:
 - The reference data is mounted read/write in `/refdata`
