@@ -27,6 +27,14 @@ For alternative versions, all tags can be found [here](https://hub.docker.com/r/
 docker pull gridss/gridss-purple-linx:latest
 ```
 
+### Building the docker image / release package
+
+Building the docker image is *not* required.
+If you do however want to build it yourself, then the release packaging build script will create the release package and generate a docker image for that release:
+```
+./build.sh
+```
+
 
 ## Running the Docker Image Pipeline
 The docker images assumes the following:
